@@ -355,9 +355,13 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 
 ## Pitfalls
 
-1. **架构原则**：pipeline skill = 编排器 + 独立子skill，不要把所有逻辑塞进一个skill。参考 wechat-automation-pipeline-skill 的模式：pipeline 只负责状态机和 contracts，每个 step 调用独立的子skill，子skill 可单独复用。
+1. **架构原则**：pipeline skill = 编排器 + 独立子skill，不要把所有逻辑塞进一个skill。参考 wechat-automation-pipeline-skill 的模式：pipeline 只负责状态机和 contracts，每个 step 调用独立的子skill，子skill 可单独复用。templates/ 目录保留在 pipeline 中作为输出格式参考，但实际生成逻辑在各子skill中。
 2. **工作目录**：pipeline.py 的 `PROJECT_ROOT` 是相对路径 `outputs/book-distillation-pipeline-skill/`。必须从项目根目录（如 `~/`）运行，不能从 skill 目录内部运行，否则 outputs 会写到 skill 目录内。
 3. **文件路径**：`--book-path` 必须是已存在的文件路径，否则 init 会报错。建议使用绝对路径。
+4. **checkpoint approve 必须带 --value**：每个 approve 命令都需要 `--value approved`（或对应选项值），否则会报错 `requires --value`。
+5. **子skill调用方式**：当前每个step需要agent手动调用对应子skill（skill_view + 按SKILL.md中的Prompt生成内容）。未来可考虑让pipeline.py自动调用子skill。
+6. **交叉验证的精度**：cross-validation使用简单字符串匹配，可能遗漏语义相同但措辞不同的条目。验证后建议agent人工确认。
+7. **person-series 特殊处理**：关于同一人物的多来源材料（访谈录、博客、问答），分类时通常用模板A（决策纠偏）为主，辅模块选人格模拟法的语音特征+场景回应库。作者原声提取需区分"他的原话"和"他人描述"。
 
 ## Sub-skills
 
