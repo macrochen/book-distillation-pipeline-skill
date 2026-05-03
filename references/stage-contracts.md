@@ -7,9 +7,14 @@
 ## Step 0: Init
 
 - 类型：action
-- 输入：书籍PDF路径、书名、作者名
+- 输入：书籍文件路径（支持多个）、书名、作者名
+- 支持格式：PDF、MD、Markdown、TXT、EPUB
+- 项目类型：
+  - `single`：单本书籍
+  - `multi-book`：同一作者的系列书籍
+  - `person-series`：关于同一人物的多来源材料
 - 输出：
-  - `00-book-info.md`
+  - `00-book-info.md`（含所有书籍列表）
   - `.pipeline-state.json`
 - 记账：自动完成
 
@@ -32,13 +37,17 @@
 ## Step 1: Classify
 
 - 类型：action
-- 输入：`00-book-info.md`、书籍PDF
+- 输入：`00-book-info.md`、所有书籍文件
 - 使用模板：`templates/classification-guide.md`
 - 输出：`01-classification.md`
+- 多书场景说明：
+  - 多本书通常共享同一主类型（如同一作者的系列书籍）
+  - 分类时需考虑所有书籍的整体定位，而非逐本分类
+  - 若多本书类型差异大，以占比最大的类型为主，其他作为辅模块
 - 审核清单：
   - [ ] 主类型明确（六选一）
   - [ ] 辅模块≤2个
-  - [ ] 选择理由充分
+  - [ ] 选择理由充分（多书时需说明如何整合）
 - 记账：
   ```bash
   python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
@@ -62,14 +71,18 @@
 ## Step 2: Author Voice
 
 - 类型：action
-- 输入：书籍PDF
+- 输入：所有书籍文件
 - 使用模板：`templates/author-voice-prompt.md`
 - 输出：`02-author-voice.md`
+- 多书场景说明：
+  - 多本书时，需跨所有书籍提取统一的作者原声特征
+  - 若为 person-series（关于同一人物的多来源），需区分"他的原话"和"他人描述"
+  - 合并高频出现的特征，标注来源书籍
 - 审核清单：
   - [ ] 口头禅≥3个
   - [ ] 反问句式≥3个
   - [ ] 比喻习惯≥3个
-  - [ ] 每项有原文出处
+  - [ ] 每项有原文出处（多书时标注来自哪本书）
   - [ ] 抽查3处原文存在
 - 记账：
   ```bash

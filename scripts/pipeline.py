@@ -161,6 +161,34 @@ class PipelineError(RuntimeError):
     pass
 
 
+SUPPORTED_FORMATS = {".pdf", ".md", ".markdown", ".txt", ".epub"}
+
+
+def detect_format(file_path: Path) -> str:
+    ext = file_path.suffix.lower()
+    if ext not in SUPPORTED_FORMATS:
+        raise PipelineError(f"unsupported format: {ext}. supported: {', '.join(sorted(SUPPORTED_FORMATS))}")
+    return ext
+
+
+def parse_book_entries(book_paths, book_titles=None) -> list:
+    """Parse multiple book paths into structured entries with title and format."""
+    entries = []
+    titles = book_titles or []
+    for i, raw_path in enumerate(book_paths):
+        p = Path(raw_path).expanduser().resolve()
+        if not p.exists():
+            raise PipelineError(f"book file does not exist: {p}")
+        fmt = detect_format(p)
+        title = titles[i] if i < len(titles) else p.stem
+        entries.append({
+            "path": str(p),
+            "title": title,
+            "format": fmt,
+        })
+    return entries
+
+
 def now_iso():
     return datetime.now().isoformat(timespec="seconds")
 
@@ -249,35 +277,47 @@ def require_file(path_str, key_name):
 
 
 def init_project(args):
-    book_path = Path(args.book_path).expanduser().resolve()
-    if not book_path.exists():
-        raise PipelineError(f"book file does not exist: {book_path}")
-
+    book_entries = parse_book_entries(args.book_path, args.book_title)
     project_dir = Path(args.project_dir) if args.project_dir else default_project_dir(args.title)
     project_dir = ensure_valid_project_dir(project_dir)
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy book info
+    # Build book info
+    multi_book = len(book_entries) > 1
     book_info = {
         "title": args.title,
         "author": args.author,
-        "book_path": str(book_path),
+        "project_type": args.project_type or ("multi-book" if multi_book else "single"),
+        "books": book_entries,
         "target_platform": args.platform or "gemini",
         "gemini_create_url": args.gemini_url or "https://gemini.google.com/gems/create",
     }
+
+    # Generate book info markdown
     book_info_md = project_dir / "00-book-info.md"
+    books_section = ""
+    for i, b in enumerate(book_entries, 1):
+        books_section += (
+            f"### 书籍 {i}\n"
+            f"- **书名**: {b['title']}\n"
+            f"- **格式**: {b['format']}\n"
+            f"- **路径**: {b['path']}\n\n"
+        )
+
     book_info_content = (
         f"# 书籍信息\n\n"
-        f"- **书名**: {book_info['title']}\n"
-        f"- **作者**: {book_info['author']}\n"
-        f"- **PDF路径**: {book_info['book_path']}\n"
+        f"- **项目名称**: {book_info['title']}\n"
+        f"- **作者/人物**: {book_info['author']}\n"
+        f"- **项目类型**: {book_info['project_type']}\n"
+        f"- **书籍数量**: {len(book_entries)}\n"
         f"- **目标平台**: {book_info['target_platform']}\n"
-        f"- **Gemini创建页面**: {book_info['gemini_create_url']}\n"
+        f"- **Gemini创建页面**: {book_info['gemini_create_url']}\n\n"
+        f"## 书籍列表\n\n{books_section}"
     )
     book_info_md.write_text(book_info_content, encoding="utf-8")
 
     state = {
-        "version": 1,
+        "version": 2,
         "title": args.title,
         "author": args.author,
         "project_dir": str(project_dir),
@@ -286,17 +326,22 @@ def init_project(args):
         "completed_stages": ["step_0_init"],
         "decisions": {},
         "artifacts": {
-            "book_path": str(book_path),
             "book_info_md": str(book_info_md.resolve()),
         },
         "meta": {
+            "project_type": book_info["project_type"],
+            "book_count": len(book_entries),
+            "books": book_entries,
             "target_platform": book_info["target_platform"],
             "gemini_create_url": book_info["gemini_create_url"],
         },
         "history": [],
         "auto_mode": args.auto if hasattr(args, "auto") else False,
     }
-    append_history(state, "init", "step_0_init", {"book_path": str(book_path)})
+    append_history(state, "init", "step_0_init", {
+        "book_count": len(book_entries),
+        "books": [b["title"] for b in book_entries],
+    })
     save_state(project_dir, state)
 
     print_json(
@@ -305,6 +350,8 @@ def init_project(args):
             "project_dir": str(project_dir),
             "state_file": str(state_path(project_dir)),
             "current_stage": state["current_stage"],
+            "book_count": len(book_entries),
+            "project_type": book_info["project_type"],
             "artifacts": state["artifacts"],
         }
     )
@@ -479,9 +526,11 @@ def build_parser():
 
     init_parser = subparsers.add_parser("init")
     init_parser.add_argument("--project-dir")
-    init_parser.add_argument("--book-path", required=True, help="Path to the book PDF")
-    init_parser.add_argument("--title", required=True, help="Book title")
-    init_parser.add_argument("--author", required=True, help="Book author")
+    init_parser.add_argument("--book-path", required=True, nargs="+", help="Path(s) to book files (PDF, MD, TXT, EPUB). Multiple paths for multi-book projects.")
+    init_parser.add_argument("--book-title", nargs="*", help="Title(s) for each book (optional, defaults to filename)")
+    init_parser.add_argument("--title", required=True, help="Project/agent title")
+    init_parser.add_argument("--author", required=True, help="Author or subject person name")
+    init_parser.add_argument("--project-type", choices=["single", "multi-book", "person-series"], help="Project type (auto-detected if omitted)")
     init_parser.add_argument("--platform", default="gemini", help="Target platform: gemini or chatgpt")
     init_parser.add_argument("--gemini-url", default="https://gemini.google.com/gems/create", help="Gemini Gem creation URL")
     init_parser.add_argument("--auto", action="store_true", help="Enable auto mode")
