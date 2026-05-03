@@ -355,8 +355,22 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 
 ## Pitfalls
 
-1. **工作目录**：pipeline.py 的 `PROJECT_ROOT` 是相对路径 `outputs/book-distillation-pipeline-skill/`。必须从项目根目录（如 `~/`）运行，不能从 skill 目录内部运行，否则 outputs 会写到 skill 目录内。
-2. **PDF路径**：`--book-path` 必须是已存在的文件路径，否则 init 会报错。建议使用绝对路径。
+1. **架构原则**：pipeline skill = 编排器 + 独立子skill，不要把所有逻辑塞进一个skill。参考 wechat-automation-pipeline-skill 的模式：pipeline 只负责状态机和 contracts，每个 step 调用独立的子skill，子skill 可单独复用。
+2. **工作目录**：pipeline.py 的 `PROJECT_ROOT` 是相对路径 `outputs/book-distillation-pipeline-skill/`。必须从项目根目录（如 `~/`）运行，不能从 skill 目录内部运行，否则 outputs 会写到 skill 目录内。
+3. **文件路径**：`--book-path` 必须是已存在的文件路径，否则 init 会报错。建议使用绝对路径。
+
+## Sub-skills
+
+本pipeline调用以下独立子skill（每个可单独使用）：
+
+| Step | 子skill | 产出 |
+|------|---------|------|
+| 1 | `book-classifier-skill` | `01-classification.md` |
+| 2 | `author-voice-extractor-skill` | `02-author-voice.md` |
+| 3 | `instruction-generator-skill` | `03-instructions.md` |
+| 4 | `knowledge-base-builder-skill` | `04-knowledge-base.md` |
+| 5 | `cross-validator-skill` | `05-cross-validation.md` |
+| 6 | `agent-packager-skill` | `06-package-config.md` |
 
 ## Failure Recovery
 
