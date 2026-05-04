@@ -376,6 +376,26 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 | 5 | `cross-validator-skill` | `05-cross-validation.md` |
 | 6 | `agent-packager-skill` | `06-package-config.md` |
 
+## 蒸馏产出规范（Pipeline完成后必须执行）
+
+蒸馏完成后，产出物需要整理为独立Skill：
+
+1. **创建独立Skill**到 `~/.agents/skills/<书名或人物>-perspective-skill/`
+2. **书中案例/数据/公式**整理到 `references/` 目录
+3. **SKILL.md**只保留框架规则，不堆数据（数据放references/）
+4. **蒸馏报告**输出到 `~/outputs/<skill-name>/`
+
+示例结构：
+```
+~/.agents/skills/duanyongping-perspective-skill/
+├── SKILL.md              # 框架规则（身份定义+核心模型+决策协议+反模式禁令）
+├── references/
+│   ├── knowledge-base.md # 完整知识库（18条目）
+│   ├── author-voice.md   # 作者原声特征
+│   └── case-studies.md   # 投资案例（苹果/茅台/网易/拼多多）
+└── .gitignore
+```
+
 ## Failure Recovery
 
 - 外部技能失败：保持在当前stage，说明失败原因
