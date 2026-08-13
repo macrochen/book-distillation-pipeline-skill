@@ -29,6 +29,9 @@ description: 书籍蒸馏→Custom GPT/Gemini Gem封装的自动化流水线。�
 - 知识库未与指令交叉验证就打包
 - 未询问目标平台（Gemini/ChatGPT）就执行打包
 - 跳过用户审核checkpoints
+- **知识库条目数 < 50 时不放行 checkpoint_4_kb_review**（质量门槛）
+- **Instructions 长度 < 5000 字时不放行 checkpoint_3_instructions_review**（深度门槛）
+- **作者原声提取 < 40 条时不放行 checkpoint_2_voice_review**（充分性门槛）
 
 ## Project Layout
 
@@ -197,6 +200,11 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 
 展示作者原声提取结果，用户可补充或修正。
 
+**充分性门槛（自动检查）**：
+- 口头禅/反问句/比喻/否定句每类 ≥8 个
+- 回答模式覆盖 ≥5 种问题类型
+- 总提取条目 ≥ 40 条（不足则返回 step_2 补充）
+
 ```bash
 python3 ${SKILL_DIR}/scripts/pipeline.py approve \
   --project-dir "outputs/book-distillation-pipeline-skill/<yyyymmdd-slug>" \
@@ -229,6 +237,9 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 - 冲突表（至少2条默认vs例外）
 - 边界条件
 - 作者原声出处
+- **深度门槛：Instructions 总长度 ≥ 5000 字（不足则返回 step_3 补充）**
+- **模型数量 ≥ 5 个，每个模型附带 ≥2 个书中案例**
+- **IF-THEN 场景 ≥ 8 个，覆盖买入/卖出/持有/选股/仓位/情绪等**
 
 ```bash
 python3 ${SKILL_DIR}/scripts/pipeline.py approve \
@@ -254,6 +265,12 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 ### Checkpoint 4: KB Review
 
 展示知识库条目数量和关键条目预览。
+
+**质量门槛（自动检查）**：
+- 条目总数 ≥ 50（不足则返回 step_4 补充）
+- 每条核心概念条目包含 ≥3 条原文引用
+- 每条核心概念条目包含 ≥1 个具体案例
+- 公司点评和投资案例已作为独立条目提取
 
 ```bash
 python3 ${SKILL_DIR}/scripts/pipeline.py approve \
@@ -360,6 +377,8 @@ python3 ${SKILL_DIR}/scripts/pipeline.py complete-action \
 3. **文件路径**：`--book-path` 必须是已存在的文件路径，否则 init 会报错。建议使用绝对路径。
 4. **checkpoint approve 必须带 --value**：每个 approve 命令都需要 `--value approved`（或对应选项值），否则会报错 `requires --value`。
 5. **子skill调用方式**：当前每个step需要agent手动调用对应子skill（skill_view + 按SKILL.md中的Prompt生成内容）。未来可考虑让pipeline.py自动调用子skill。
+6. **禁止delegate_task处理大文件**：当源书 > 100KB 时，delegate_task（subagent）会因read_file调用过多而耗尽迭代次数，最终什么文件都不输出。此问题在实际运行中反复出现（4次）。解决方案：对于 step_2（作者原声）、step_3（instructions）、step_4（知识库），agent 应自己直接执行——分段读取源书（每段2000行），然后直接 write_file 写入产出物。如果必须用 subagent，必须在 context 中提供已读取的摘要内容（而非让 subagent 自己去读源文件）。
+7. **知识库生成策略**：Step 4 产出 80-150 条条目，单次写入可能超出上下文。推荐分两批：先写 Part 1（核心概念，第一~二章），再写 Part 2（公司点评+案例，第三~五章），最后合并去重。
 6. **交叉验证的精度**：cross-validation使用简单字符串匹配，可能遗漏语义相同但措辞不同的条目。验证后建议agent人工确认。
 7. **person-series 特殊处理**：关于同一人物的多来源材料（访谈录、博客、问答），分类时通常用模板A（决策纠偏）为主，辅模块选人格模拟法的语音特征+场景回应库。作者原声提取需区分"他的原话"和"他人描述"。
 
